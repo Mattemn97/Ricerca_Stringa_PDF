@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Ricerca di una stringa all'interno di uno o più PDF.
-- Permette di analizzare un singolo file o un'intera cartella
+Ricerca di una stringa all'interno di uno o più PDF (anche in modo ricorsivo).
+- Permette di analizzare un singolo file o un'intera cartella (inclusi sottocartelle)
 - Usa PyPDF2 per l'estrazione del testo
 - Mostra una barra di progresso (tqdm)
 - Genera due file di log:
@@ -15,7 +15,7 @@ from tqdm import tqdm
 from PyPDF2 import PdfReader
 
 
-# ---------------- Lettura PDF ----------------
+# ---------------- Estrazione testo PDF ----------------
 def extract_text_from_pdf(pdf_path):
     """Estrae il testo da un PDF. Ritorna stringa vuota in caso di errore."""
     try:
@@ -31,17 +31,28 @@ def extract_text_from_pdf(pdf_path):
         return ""
 
 
-# ---------------- Ricerca in un singolo PDF ----------------
+# ---------------- Ricerca stringa ----------------
 def search_in_pdf(pdf_path, needle):
     """Ritorna True se la stringa è presente nel PDF."""
     text = extract_text_from_pdf(pdf_path).lower()
     return needle.lower() in text
 
 
+# ---------------- Scansione ricorsiva ----------------
+def get_all_pdfs_recursive(folder_path):
+    """Ritorna lista di TUTTI i PDF dentro la cartella (ricorsivamente)."""
+    pdfs = []
+    for root, dirs, files in os.walk(folder_path):
+        for f in files:
+            if f.lower().endswith(".pdf"):
+                pdfs.append(os.path.join(root, f))
+    return pdfs
+
+
 # ---------------- Flusso guidato ----------------
 def guided_flow():
     os.system('cls' if os.name == 'nt' else 'clear')
-    print("— Ricerca stringa nei PDF —\n")
+    print("— Ricerca stringa nei PDF (ricorsiva) —\n")
 
     # 1) Stringa da cercare
     needle = input("1) Inserisci la stringa da cercare: ").strip()
@@ -56,19 +67,15 @@ def guided_flow():
             pdf_files = [path]
             break
         elif os.path.isdir(path):
-            pdf_files = [
-                os.path.join(path, f)
-                for f in os.listdir(path)
-                if f.lower().endswith(".pdf")
-            ]
+            pdf_files = get_all_pdfs_recursive(path)
             if not pdf_files:
-                print("❌ Nessun PDF nella cartella. Riprova.")
+                print("❌ Nessun PDF trovato (nemmeno nelle sottocartelle). Riprova.")
                 continue
             break
         else:
             print("❌ Percorso non valido. Riprova.")
 
-    print(f"\n📄 PDF trovati: {len(pdf_files)}\n")
+    print(f"\n📄 PDF trovati (ricorsivi): {len(pdf_files)}\n")
 
     # 3) File di output
     out_yes = "File con la stringa.txt"
@@ -93,11 +100,11 @@ def guided_flow():
         for p in not_found:
             f.write(p + "\n")
 
-    # 6) Report
+    # 6) Report finale
     print("\n— RISULTATO —")
     print(f"✔ File con la stringa: {len(found)} → {out_yes}")
     print(f"✘ File senza stringa: {len(not_found)} → {out_no}")
-    print("\nFatto! Puoi aprire i report generati.")
+    print("\nFatto! Report generati, puoi aprirli quando vuoi.")
 
 
 # ---------------- Entrypoint ----------------

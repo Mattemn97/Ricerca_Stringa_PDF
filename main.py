@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Ricerca di una stringa all'interno di uno o più PDF (anche in modo ricorsivo).
-- Permette di analizzare un singolo file o un'intera cartella (inclusi sottocartelle)
-- Usa PyPDF2 per l'estrazione del testo
-- Mostra una barra di progresso (tqdm)
-- Genera due file di log:
+Ricerca di una stringa all'interno di uno o più PDF (anche ricorsiva).
+Supporta sia ricerca semplice che ricerca tramite REGEX.
+
+- Analizza singolo PDF o cartella (con sottocartelle)
+- Usa PyPDF2 per estrarre il testo
+- Barra di progresso (tqdm)
+- Supporto REGEX opzionale
+- Genera:
       • File con la stringa.txt
       • File senza stringa.txt
 """
 
 import os
+import re
 from tqdm import tqdm
 from PyPDF2 import PdfReader
 
@@ -31,18 +35,36 @@ def extract_text_from_pdf(pdf_path):
         return ""
 
 
-# ---------------- Ricerca stringa ----------------
-def search_in_pdf(pdf_path, needle):
-    """Ritorna True se la stringa è presente nel PDF."""
-    text = extract_text_from_pdf(pdf_path).lower()
-    return needle.lower() in text
+# ---------------- Ricerca stringa normale ----------------
+def search_simple(text, needle):
+    """Ricerca semplice (case-insensitive)."""
+    return needle.lower() in text.lower()
+
+
+# ---------------- Ricerca tramite REGEX ----------------
+def search_regex(text, pattern):
+    """Ricerca REGEX (case-insensitive)."""
+    try:
+        return re.search(pattern, text, re.IGNORECASE) is not None
+    except re.error:
+        return False
+
+
+# ---------------- Ricerca in PDF ----------------
+def search_in_pdf(pdf_path, needle, use_regex):
+    """Ritorna True se la stringa (o regex) è presente nel PDF."""
+    text = extract_text_from_pdf(pdf_path)
+    if use_regex:
+        return search_regex(text, needle)
+    else:
+        return search_simple(text, needle)
 
 
 # ---------------- Scansione ricorsiva ----------------
 def get_all_pdfs_recursive(folder_path):
     """Ritorna lista di TUTTI i PDF dentro la cartella (ricorsivamente)."""
     pdfs = []
-    for root, dirs, files in os.walk(folder_path):
+    for root, _, files in os.walk(folder_path):
         for f in files:
             if f.lower().endswith(".pdf"):
                 pdfs.append(os.path.join(root, f))
@@ -52,15 +74,22 @@ def get_all_pdfs_recursive(folder_path):
 # ---------------- Flusso guidato ----------------
 def guided_flow():
     os.system('cls' if os.name == 'nt' else 'clear')
-    print("— Ricerca stringa nei PDF (ricorsiva) —\n")
+    print("— Ricerca stringa/REGEX nei PDF (ricorsiva) —\n")
 
-    # 1) Stringa da cercare
-    needle = input("1) Inserisci la stringa da cercare: ").strip()
+    # 1) Vuoi usare REGEX?
+    use_regex = input("Vuoi usare una REGEX? [s/N]: ").strip().lower() in ("s", "si", "y", "yes")
+
+    # 2) Inserimento criterio
+    if use_regex:
+        needle = input("1) Inserisci la REGEX da cercare: ").strip()
+    else:
+        needle = input("1) Inserisci la stringa da cercare: ").strip()
+
     if not needle:
-        print("❌ Nessuna stringa inserita. Interrompo.")
+        print("❌ Nessun valore inserito. Interrompo.")
         return
 
-    # 2) Percorso input (file o cartella)
+    # 3) Percorso
     while True:
         path = input("\n2) Inserisci percorso PDF o cartella: ").strip()
         if os.path.isfile(path) and path.lower().endswith(".pdf"):
@@ -75,23 +104,24 @@ def guided_flow():
         else:
             print("❌ Percorso non valido. Riprova.")
 
-    print(f"\n📄 PDF trovati (ricorsivi): {len(pdf_files)}\n")
+    print(f"\n📄 PDF trovati: {len(pdf_files)}\n")
 
-    # 3) File di output
+    # 4) File output
     out_yes = "File con la stringa.txt"
     out_no = "File senza stringa.txt"
 
     found = []
     not_found = []
 
-    # 4) Analisi con barra di progresso
-    for pdf in tqdm(pdf_files, desc="Analisi PDF", unit="file"):
-        if search_in_pdf(pdf, needle):
+    # 5) Analisi
+    desc = "Analisi PDF (REGEX)" if use_regex else "Analisi PDF"
+    for pdf in tqdm(pdf_files, desc=desc, unit="file"):
+        if search_in_pdf(pdf, needle, use_regex):
             found.append(pdf)
         else:
             not_found.append(pdf)
 
-    # 5) Scrittura risultati
+    # 6) Scrittura risultati
     with open(out_yes, "w", encoding="utf-8") as f:
         for p in found:
             f.write(p + "\n")
@@ -100,11 +130,11 @@ def guided_flow():
         for p in not_found:
             f.write(p + "\n")
 
-    # 6) Report finale
+    # 7) Report
     print("\n— RISULTATO —")
-    print(f"✔ File con la stringa: {len(found)} → {out_yes}")
-    print(f"✘ File senza stringa: {len(not_found)} → {out_no}")
-    print("\nFatto! Report generati, puoi aprirli quando vuoi.")
+    print(f"✔ File con la stringa/regex: {len(found)} → {out_yes}")
+    print(f"✘ File senza: {len(not_found)} → {out_no}")
+    print("\nFatto! Report generati.")
 
 
 # ---------------- Entrypoint ----------------
